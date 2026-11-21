@@ -30,3 +30,9 @@ You need Install Python, change directory to your folder, and run command:
 python -m http.server YourPort --bind YourIP
 View Web(IP:Port), select audio file, Then it will start playing
 **ONLY LAN!!!!!!!**
+
+支持流媒体:
+https://github.com/bilibili-hvuv23544/banli-streamplayer
+
+STREAMsupport:
+https://github.com/bilibili-hvuv23544/banli-streamplayer
