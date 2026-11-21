@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>music</title>
+</head>
+<body>
+
+<audio id="player" controls></audio>
+<br>
+<div id="cover"></div>
+<div id="filename"></div>
+<br>
+<div id="filelist"></div>
+<br>
+<div id="debug"></div>
+
+<script type="module">
+import { parseBlob } from 'https://cdn.jsdelivr.net/npm/music-metadata@9/+esm';
+
+const player = document.getElementById('player');
+const coverBox = document.getElementById('cover');
+const nameBox = document.getElementById('filename');
+const fileListDiv = document.getElementById('filelist');
+const debugDiv = document.getElementById('debug');
+
+const baseDir = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+const musicDir = baseDir + 'my-music/';
+const defaultCover = baseDir + 'default/No-Cover.webp';
+
+const audioExts = ['.mp3', '.flac', '.ogg', '.wav'];
+let allAudioFiles = [];
+let debugInfo = [];
+
+function showDefault() {
+  coverBox.innerHTML = '<img src="' + defaultCover + '">';
+}
+
+function playFile(path) {
+  const fileName = decodeURIComponent(path.substring(path.lastIndexOf('/') + 1));
+  nameBox.textContent = fileName;
+  player.src = path;
+  player.play().catch(() => {});
+
+  fetch(path)
+    .then(r => r.blob())
+    .then(blob => parseBlob(blob))
+    .then(meta => {
+      const pic = meta.common.picture && meta.common.picture[0];
+      if (pic) {
+        const url = URL.createObjectURL(new Blob([pic.data], { type: pic.format }));
+        coverBox.innerHTML = '<img src="' + url + '">';
+      } else {
+        showDefault();
+      }
+    })
+    .catch(() => showDefault());
+}
+
+// 递归扫描目录
+async function scanDirectory(dirPath) {
+  try {
+    const response = await fetch(dirPath);
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = doc.querySelectorAll('a');
+    
+    for (const link of links) {
+      const href = link.getAttribute('href');
+      if (!href || href === '../') continue;
+      
+      const fullPath = dirPath + href;
+      const fileName = decodeURIComponent(href);
+      
+      // 检查是否是目录
+      if (href.endsWith('/')) {
+        debugInfo.push('[目录] ' + fullPath);
+        // 如果是目录，递归扫描
+        await scanDirectory(fullPath);
+        continue;
+      }
+      
+      // 检查是否是音频文件
+      const ext = fileName.substring(fileName.lastIndexOf('.')).toLowerCase();
+      if (audioExts.indexOf(ext) !== -1) {
+        allAudioFiles.push({
+          name: fileName,
+          path: fullPath
+        });
+        // 音频文件不加入调试输出
+      } else {
+        // 非音频文件（且不是目录）
+        debugInfo.push('[其他] ' + fullPath);
+      }
+    }
+  } catch (err) {
+    debugInfo.push('[错误] 扫描目录失败: ' + dirPath + ' - ' + err.message);
+    console.error('扫描目录失败:', dirPath, err);
+  }
+}
+
+// 开始扫描
+scanDirectory(musicDir).then(() => {
+  // 渲染所有找到的音频文件
+  allAudioFiles.sort((a, b) => a.name.localeCompare(b.name));
+  
+  allAudioFiles.forEach(file => {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = file.name;
+    a.onclick = function(e) {
+      e.preventDefault();
+      playFile(file.path);
+    };
+    fileListDiv.appendChild(a);
+    fileListDiv.appendChild(document.createElement('br'));
+  });
+  
+  if (allAudioFiles.length === 0) {
+    fileListDiv.textContent = '未找到音频文件';
+  }
+  
+  // 显示调试输出（只包含目录和其他文件）
+  debugDiv.textContent = '调试输出:\n' + debugInfo.join('\n');
+});
+</script>
+
+</body>
+</html>
